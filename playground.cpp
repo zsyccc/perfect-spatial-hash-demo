@@ -183,9 +183,10 @@ int main(int argc, char** argv) {
 
     std::vector<vx_vertex_t> vertices_psh;
     // using psh
-    vx_vertex_t minCenter;
-    vx_vertex_t maxCenter;
+    vx_vertex_t minCenter = {1.0f, 1.0f, 1.0f};
+    vx_vertex_t maxCenter = {-1.0f, -1.0f, -1.0f};
     vx_vertex_t center = {0.0f, 0.0f, 0.0f};
+    bool first = true;
     tbb::mutex mutex;
     std::cout << "Reading Data" << std::endl;
     tbb::parallel_for(
@@ -199,13 +200,8 @@ int main(int argc, char** argv) {
                 for (int j = 0; j < 3; j++) {
                     auto& u = v.v[j];
                     u = u / scale + minVal;
-                    if (i) {
-                        minCenter.v[j] = min(minCenter.v[j], u);
-                        maxCenter.v[j] = max(maxCenter.v[j], u);
-                    }
-                }
-                if (!i) {
-                    minCenter = maxCenter = v;
+                    minCenter.v[j] = min(minCenter.v[j], u);
+                    maxCenter.v[j] = max(maxCenter.v[j], u);
                 }
                 vertices_psh.push_back(v);
             } catch (const std::out_of_range& e) {
