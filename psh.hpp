@@ -64,7 +64,7 @@ namespace psh {
 
         // data_function maps an index to a data point, n is the total number of
         // data points, u_bar is the limit of the domain in each dimension
-        map(const data_function& data, IndexInt n, PosInt u_bar)
+        map(const data_function& data, IndexInt n, PosInt u_bar, bool compact)
             : n(n),
               m_bar(std::ceil(std::pow(n, 1.0f / d))),
               m(std::pow(m_bar, d)),
@@ -89,18 +89,45 @@ namespace psh {
 
             bool create_succeeded = false;
             int fail = -1;
-            do {
-                // if we fail, we try again with a larger offset table
-                fail++;
-                r_bar += d;
-                r = std::pow(r_bar, d);
-                VALUE(r);
-                VALUE(uint(r_bar));
+            if (!compact) {
+                r_bar = 13;
+                std::cout << "buiding fast psh" << std::endl;
+                do {
+                    // if we fail, we try again with a larger offset table
+                    fail++;
+                    r_bar += d;
+                    r = std::pow(r_bar, d);
+                    VALUE(r);
+                    VALUE(uint(r_bar));
 
-                create_succeeded = create(data, m_dist);
-            } while (!create_succeeded);
-            std::cout << "=======Failed for " << fail
-                      << " times=========" << std::endl;
+                    create_succeeded = create(data, m_dist);
+                } while (!create_succeeded);
+                std::cout << "=======Failed for " << fail
+                          << " times=========" << std::endl;
+            } else {
+                std::cout << "building compact psh" << std::endl;
+                PosInt successR_bar = -1;
+                PosInt L = 1, R = u_bar;
+                while (L <= R) {
+                    fail++;
+                    r_bar = L + (R - L) / 2;
+                    r = std::pow(r_bar, d);
+                    VALUE(r);
+                    VALUE(uint(r_bar));
+                    while (bad_m_r()) r_bar--;
+                    if (create(data, m_dist)) {
+                        create_succeeded = true;
+                        successR_bar = r_bar;
+                        R = r_bar - 1;
+                    } else {
+                        L = r_bar + 1;
+                    }
+                }
+                r_bar = successR_bar;
+                r = std::pow(r_bar, d);
+                std::cout << "=======Built for " << fail
+                          << " times=========" << std::endl;
+            }
         }
 
         T& get(const point<d, PosInt>& p) {
@@ -283,6 +310,7 @@ namespace psh {
             std::cout << "done!" << std::endl;
             phi = std::move(phi_hat);
             if (!hash_positions(data, H_hat)) return false;
+            H.clear();
             H.reserve(H_hat.size());
             std::copy(H_hat.begin(), H_hat.end(), std::back_inserter(H));
 
@@ -292,7 +320,7 @@ namespace psh {
         // certain values for m_bar and r_bar are bad, empirically found to be
         // if: m_bar is coprime with r_bar <==> gcd(m_bar, r_bar) != 1 <==>
         // m_bar % r_bar ∈ {1, r_bar - 1} creds to Euclid
-        bool bad_m_r() {
+        bool bad_m_r() const {
             auto m_mod_r = m_bar % r_bar;
             return m_mod_r == 1 || m_mod_r == r_bar - 1;
         }
@@ -300,7 +328,7 @@ namespace psh {
         // creates buckets, each buckets corresponds to one entry in the offset
         // table they are then sorted by their index in the offset table so we
         // can assign the largest buckets first
-        std::vector<bucket> create_buckets(const data_function& data) {
+        std::vector<bucket> create_buckets(const data_function& data) const {
             std::vector<bucket> buckets;
             buckets.reserve(r);
             {
@@ -337,7 +365,7 @@ namespace psh {
 
             IndexInt chunk_index = 0;
             const IndexInt num_cores = std::thread::hardware_concurrency();
-            const IndexInt group_size = r / num_cores + 1;
+            const IndexInt group_size = m / num_cores + 1;  // here r
 
             tbb::parallel_pipeline(
                 num_cores,
@@ -406,7 +434,8 @@ namespace psh {
 
         // permanently inserts a bucket into a temporary hash table
         void insert(const bucket& b, std::vector<entry_large>& H_hat,
-                    std::vector<bool>& H_b_hat, const decltype(phi)& phi_hat) {
+                    std::vector<bool>& H_b_hat,
+                    const decltype(phi)& phi_hat) const {
             for (auto& element : b) {
                 auto hashed = h(element.location, phi_hat);
                 auto i = point_to_index(hashed, m_bar, m);

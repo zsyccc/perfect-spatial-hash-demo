@@ -84,11 +84,11 @@ int main(int argc, char** argv) {
     // begin psh
     using pixel = bool;
     const uint d = 3;
-    using PosInt = uint8_t;
+    using PosInt = uint16_t;
     using HashInt = uint8_t;
     using map = psh::map<d, pixel, PosInt, HashInt>;
     using point = psh::point<d, PosInt>;
-    using DataInt = uint64_t;
+    using IndexInt = uint64_t;
     int scale = 1 / res;
 
     std::vector<map::data_t> data;
@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
             minVal = min(u, minVal);
         }
     }
-    std::set<DataInt> data_b;
+    std::set<IndexInt> data_b;
     using std::round;
     PosInt width = 0;
     for (auto it : vertexes) {
@@ -121,7 +121,7 @@ int main(int argc, char** argv) {
               << std::endl;
 
     auto start_time = std::chrono::high_resolution_clock::now();
-    map s([&](size_t i) { return data[i]; }, data.size(), width);
+    map s([&](size_t i) { return data[i]; }, data.size(), width, false);
     auto stop_time = std::chrono::high_resolution_clock::now();
 
     auto original_data_size =
@@ -161,8 +161,8 @@ int main(int argc, char** argv) {
 #if 1
     std::cout << "exhaustive test" << std::endl;
     tbb::parallel_for(
-        DataInt(0), DataInt(width * width * width), [&](DataInt i) {
-            point p = psh::index_to_point<d>(i, width, DataInt(-1));
+        IndexInt(0), IndexInt(width * width * width), [&](IndexInt i) {
+            point p = psh::index_to_point<d>(i, width, IndexInt(-1));
             pixel exists = data_b.count(i);
             try {
                 s.get(p);
@@ -190,8 +190,8 @@ int main(int argc, char** argv) {
     tbb::mutex mutex;
     std::cout << "Reading Data" << std::endl;
     tbb::parallel_for(
-        DataInt(0), DataInt(width * width * width), [&](DataInt i) {
-            point p = psh::index_to_point<d>(i, width, DataInt(-1));
+        IndexInt(0), IndexInt(width * width * width), [&](IndexInt i) {
+            point p = psh::index_to_point<d>(i, width, IndexInt(-1));
             try {
                 s.get(p);
                 psh::point<d, float> pp = static_cast<psh::point<d, float>>(p);
